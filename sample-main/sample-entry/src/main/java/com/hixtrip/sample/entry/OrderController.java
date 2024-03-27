@@ -1,7 +1,15 @@
 package com.hixtrip.sample.entry;
 
+import com.hixtrip.sample.app.api.OrderService;
+import com.hixtrip.sample.app.api.SampleService;
+import com.hixtrip.sample.app.convertor.OrderConvertor;
 import com.hixtrip.sample.client.order.dto.CommandOderCreateDTO;
 import com.hixtrip.sample.client.order.dto.CommandPayDTO;
+import com.hixtrip.sample.client.order.vo.OrderVO;
+import com.hixtrip.sample.domain.order.model.Order;
+import com.hixtrip.sample.domain.pay.PayDomainService;
+import com.hixtrip.sample.infra.db.dataobject.OrderDO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class OrderController {
 
+    @Autowired
+    private OrderService orderService;
 
     /**
      * todo 这是你要实现的接口
@@ -22,8 +32,12 @@ public class OrderController {
     @PostMapping(path = "/command/order/create")
     public String order(@RequestBody CommandOderCreateDTO commandOderCreateDTO) {
         //登录信息可以在这里模拟
-        var userId = "";
-        return "";
+        String userId = "";
+        String userName = "";
+        Order order = OrderConvertor.INSTANCE.oderCreateDTOToOrder(commandOderCreateDTO);
+        order.setUserId(userId);
+        order.setUserName(userName);
+        return orderService.creatOrder(order);
     }
 
     /**
@@ -35,7 +49,9 @@ public class OrderController {
      */
     @PostMapping(path = "/command/order/pay/callback")
     public String payCallback(@RequestBody CommandPayDTO commandPayDTO) {
-        return "";
+        orderService.payCallback(commandPayDTO);
+        return "SUCCESS";
+
     }
 
 }

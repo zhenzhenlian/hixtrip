@@ -1,5 +1,6 @@
-package com.hixtrip.sample.domain.order.model;
+package com.hixtrip.sample.infra.db.dataobject;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -9,16 +10,13 @@ import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * 订单表
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
+@TableName(value = "order_info", autoResultMap = true)
 @SuperBuilder(toBuilder = true)
-public class Order {
-
+public class OrderDO {
     /**
      * 订单号
      */
@@ -36,15 +34,15 @@ public class Order {
 
 
     /**
-     * SkuId
+     * 卖家
      */
-    private String skuId;
+    private String sellerId ;
 
 
     /**
-     * 卖家
+     * SkuId
      */
-    private String sellerId;
+    private String skuId;
 
     /**
      * 购买数量
@@ -94,6 +92,5 @@ public class Order {
      * 修改时间
      */
     private LocalDateTime updateTime;
-
 
 }
