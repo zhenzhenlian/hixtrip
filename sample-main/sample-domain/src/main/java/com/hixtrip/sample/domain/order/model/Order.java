@@ -41,10 +41,6 @@ public class Order {
     private String skuId;
 
 
-    /**
-     * 卖家
-     */
-    private String sellerId;
 
     /**
      * 购买数量

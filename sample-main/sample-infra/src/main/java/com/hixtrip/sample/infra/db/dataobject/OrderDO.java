@@ -32,13 +32,6 @@ public class OrderDO {
      */
     private String userName;
 
-
-    /**
-     * 卖家
-     */
-    private String sellerId ;
-
-
     /**
      * SkuId
      */

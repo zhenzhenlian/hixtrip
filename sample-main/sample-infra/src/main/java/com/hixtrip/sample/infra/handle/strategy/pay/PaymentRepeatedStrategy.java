@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 public class PaymentRepeatedStrategy implements PaymentStrategy {
     @Override
     public String payStatus() {
-        return PaymentStatusEnum.REPEATED;
+        return PaymentStatusEnum.REPEATED.getStatus();
     }
 
     @Override

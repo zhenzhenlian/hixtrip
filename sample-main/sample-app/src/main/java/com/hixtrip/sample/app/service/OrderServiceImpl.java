@@ -32,6 +32,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public String creatOrder(Order request) {
+        // todo 扣减可售库存
         Boolean result = inventoryDomainService.changeInventory(request.getSkuId(), null, request.getAmount().longValue(), null);
         if (!result) {
             throw new RuntimeException("库存不足");
@@ -42,7 +43,7 @@ public class OrderServiceImpl implements OrderService {
             Order order = orderDomainService.createOrder(request);
             return order.getId();
         } catch (Exception e) {
-            // 失败需要回滚预占库存
+            // 失败需要回滚预占库存，可售库存
             inventoryDomainService.changeInventory(request.getSkuId(), request.getAmount().longValue(), null, null);
             throw e;
         }

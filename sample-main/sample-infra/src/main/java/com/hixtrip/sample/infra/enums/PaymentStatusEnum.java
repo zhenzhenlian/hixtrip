@@ -10,7 +10,8 @@ public enum PaymentStatusEnum {
     TO_BE_PAY("toBePay", 0, "待支付"),
     SUCCESS("success", 1, "支付成功"),
     FAILED("failed", 2, "支付失败"),
-    REPEATED("repeated", 3, "重复支付"),
+    CANCELED("canceled", 3, "取消支付"),
+    REPEATED("repeated", 4, "重复支付"),
     ;
     private String status;
     private Integer value;

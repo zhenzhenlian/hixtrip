@@ -16,6 +16,7 @@ public class PaymentHandle {
     public void execute(CommandPay commandPay) {
         PaymentStrategy paymentStrategy = factory.getStrategy(commandPay.getPayStatus());
         paymentStrategy.callback(commandPay.getOrderId());
+
     }
 
 }

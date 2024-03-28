@@ -3,12 +3,14 @@
 -- 对于订单的其他扩展表， 比如一个订单多个sku的需要拆分order_item、refund_item、支付需要记录支付渠道和支付订单号作为溯源依据等，这边不做展开。
 -- 用户下单数据只写入用户库的订单表，商家库（允许秒级延迟）和运营库（允许分钟级延迟）可以通过mq推送或者canal等方式进行同步
 -- 用户库的订单表可以进行分库分表，可以通过user_id取模作为sharding-key，查询接口需要加上redis缓存（使用用户id作为key，订单id作为list存储），有新增订单则更新缓存
--- 商家的订单查询接口可以增加缓存，缓存存储为redis，结构设计如下
+-- 商家的订单表可以进行分库分表，可以通过seller_id取模作为sharding-key，查询接口可以增加缓存，缓存存储为redis，结构设计如下
+-- 运营端的订单表可以进行分库分表，可以通过user_id取模作为sharding-key，定时去清理超过完成超过半年的订单。
 -- 客服查找客诉订单的接口，
-      -- 条件为订单后几位的时候，可以通过redis查询，未来如果查询条件更复杂，可以用redis-search或者 es来实现。
-      -- 条件为姓名的时候，可以先通过姓名找到userid，再通过redis查询。
+      -- 可以通过db查询，设置联合索引，可以满足索引下推能覆盖到订单后几位查询和姓名模糊匹配。
+      -- 条件为订单后几位的时候，可以通过redis查询，使用scan命令批量获取订单，再过滤姓名。
+      -- 未来如果查询条件更复杂，可以用redis-search或者 es来实现。。
 -- 排行榜的数据，需要写job通过对应维度统计数据到db，并且在用户下单后维护对应修改redis的结构（以下4、5的结构）
-     -- 接口查询，可以通过redis的zrevrange 来获取排行榜数据。
+     -- 接口查询，可以通过redis的zrevrange命令来获取排行榜数据。
 
 --
 -- 1.redis设计结构
@@ -24,7 +26,6 @@ CREATE TABLE `order_info` (
               `id` varchar(32) NOT NULL COMMENT '主键',
               `user_id` varchar(32) DEFAULT NULL COMMENT '用户',
               `user_name` varchar(32) DEFAULT NULL COMMENT '用户姓名冗余',
-              `seller_id` varchar(32) DEFAULT NULL COMMENT '商家id',
               `sku_id` varchar(32) DEFAULT NULL COMMENT '商品',
               `amount` int(10) DEFAULT NULL COMMENT '数量',
               `money` decimal(10,0) DEFAULT NULL COMMENT '支付金额',
@@ -42,6 +43,20 @@ CREATE TABLE `order_info` (
               KEY `index-user_name` (`create_time`,`user_name`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单';
 
+DROP TABLE IF EXISTS `order_pay`;
+CREATE TABLE `order_pay` (
+                             `id` varchar(32) NOT NULL COMMENT '主键',
+                             `user_id` varchar(32) DEFAULT NULL COMMENT '用户',
+                             `order_id` varchar(32) DEFAULT NULL COMMENT '关联订单id',
+                             `money` decimal(10,0) DEFAULT NULL COMMENT '支付金额',
+                             `pay_time` timestamp NULL DEFAULT NULL COMMENT '支付时间',
+                             `pay_status` tinyint(2) DEFAULT NULL COMMENT '支付状态：待付款、付款成功、付款失败',
+                             `pay_type` tinyint(3) DEFAULT NULL COMMENT '支付渠道',
+                             `pay_id` varchar(32) DEFAULT NULL COMMENT '交易单号',
+                             `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间' ,
+                             PRIMARY KEY (`id`),
+                             KEY `index-order_id` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单支付表';
 
 ---------------------------------------- 商家库---------------------------------------------------
 DROP TABLE IF EXISTS `saller_order`;
@@ -64,6 +79,29 @@ CREATE TABLE `saller_order` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商家订单';
 
 ---------------------------------------- 运营库---------------------------------------------------
+DROP TABLE IF EXISTS `kf_order`;
+CREATE TABLE `kf_order` (
+                              `id` varchar(32) NOT NULL COMMENT '主键',
+                              `customer_id` varchar(32) DEFAULT NULL COMMENT '顾客id',
+                              `customer_order_id` varchar(32) DEFAULT NULL COMMENT '顾客订单id',
+                              `customer_name` varchar(32) DEFAULT NULL COMMENT '顾客姓名',
+                              `seller_id` varchar(32) DEFAULT NULL COMMENT '商家id',
+                              `sku_id` varchar(32) DEFAULT NULL COMMENT '商品',
+                              `amount` int(10) DEFAULT NULL COMMENT '数量',
+                              `money` decimal(10,0) DEFAULT NULL COMMENT '支付金额',
+                              `pay_time` timestamp NULL DEFAULT NULL COMMENT '支付时间',
+                              `pay_status` tinyint(2) DEFAULT NULL COMMENT '支付状态：待付款、付款成功、付款失败',
+                              `status` tinyint(3) DEFAULT NULL COMMENT '订单状态: 待付款、待发货、待签收、待评价、已取消、已退款...',
+                              `create_by` varchar(32) DEFAULT NULL COMMENT '创建人',
+                              `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                              `update_by` varchar(32) DEFAULT NULL COMMENT '更新人',
+                              `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                              `del_flag` tinyint(2) DEFAULT '0' COMMENT '删除标识，0代表未删除，1代表删除',
+                              PRIMARY KEY (`id`),
+                              KEY `index-customer_id` (`customer_id`) USING BTREE,
+                              KEY `index-customer_order_id` (`create_time`,`customer_order_id`) USING BTREE,
+                              KEY `index-customer_name` (`create_time`,`customer_name`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='运营端顾客订单';
 
 DROP TABLE IF EXISTS `seller_order_statistics`;
 CREATE TABLE `seller_order_statistics` (
@@ -74,7 +112,8 @@ CREATE TABLE `seller_order_statistics` (
            `max_order_amount` decimal(10,0) DEFAULT NULL COMMENT '最大金额',
            `min_order_amount` decimal(10,0) DEFAULT NULL COMMENT '最小金额',
            `avg_order_amount` decimal(10,0) DEFAULT NULL COMMENT '最小金额',
-           `order_statistical_dimension` tinyint(4) DEFAULT NULL COMMENT '统计维度,0:日，1：月；2：年',
+           `group_day` int NULL COMMENT '分组日期：yyyy / yyyyMM / yyyyMMdd',
+           `group_type` tinyint(4) DEFAULT NULL COMMENT '分组类型,0:日，1：月；2：年',
            `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
            PRIMARY KEY (`id`),
            KEY `index-saller` (`seller_id`,`order_statistical_dimension`)
@@ -85,11 +124,12 @@ CREATE TABLE `user_order_statistics` (
          `id` varchar(32) NOT NULL COMMENT '主键',
          `customer_id` varchar(32) DEFAULT NULL COMMENT '顾客id',
          `order_count` int(10) DEFAULT NULL COMMENT '数量',
-         `order_total_amount` decimal(10,0) DEFAULT NULL COMMENT '订单总金额',
-         `max_order_amount` decimal(10,0) DEFAULT NULL COMMENT '最大金额',
-         `min_order_amount` decimal(10,0) DEFAULT NULL COMMENT '最小金额',
-         `avg_order_amount` decimal(10,0) DEFAULT NULL COMMENT '最小金额',
-         `order_statistical_dimension` tinyint(4) DEFAULT NULL COMMENT '统计维度,0:日，1：月；2：年',
+         `order_total_amount` decimal(10,2) DEFAULT NULL COMMENT '订单总金额',
+         `max_order_amount` decimal(10,2) DEFAULT NULL COMMENT '最大金额',
+         `min_order_amount` decimal(10,2) DEFAULT NULL COMMENT '最小金额',
+         `avg_order_amount` decimal(10,2) DEFAULT NULL COMMENT '平均金额',
+         `group_day` int NULL COMMENT '分组日期：yyyy / yyyyMM / yyyyMMdd',
+         `group_type` tinyint(4) DEFAULT NULL COMMENT '分组类型,0:日，1：月；2：年',
          `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
          PRIMARY KEY (`id`),
          KEY `index-customer` (`customer_id`,`order_statistical_dimension`) USING BTREE

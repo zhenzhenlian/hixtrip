@@ -5,6 +5,8 @@ package com.hixtrip.sample.domain.inventory.repository;
  */
 public interface InventoryRepository {
 
+    boolean addSkuInventory(String skuId, Long amount);
+
     /**
      * 预占库存成功才下单，预占失败则不允许下单
      * @param skuId

@@ -20,7 +20,16 @@ public class InventoryRepositoryImpl implements InventoryRepository {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
-    
+
+    @Override
+    public boolean addSkuInventory(String skuId, Long amount) {
+        // 增加库存
+        String sellableKey = RedisKey.getSellableKey(skuId);
+        redisTemplate.opsForValue().increment(sellableKey, amount);
+
+        return true;
+    }
+
     /**
      * 预占库存
      *
@@ -30,11 +39,11 @@ public class InventoryRepositoryImpl implements InventoryRepository {
      */
     @Override
     public boolean withholding(String skuId, Long amount) {
-        return extracted(amount,  Arrays.asList(RedisKey.getSellableKey(skuId),
+        return extracted(amount, Arrays.asList(RedisKey.getSellableKey(skuId),
                 RedisKey.getWithholdingKey(skuId)));
     }
 
-    private boolean extracted(Long amount,  List<String> keys) {
+    private boolean extracted(Long amount, List<String> keys) {
         // 构造RedisScript
         DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
         // 指定要使用的lua脚本
@@ -54,7 +63,7 @@ public class InventoryRepositoryImpl implements InventoryRepository {
      */
     @Override
     public boolean occupied(String skuId, Long amount) {
-        return extracted(amount,  Arrays.asList(RedisKey.getWithholdingKey(skuId),
+        return extracted(amount, Arrays.asList(RedisKey.getWithholdingKey(skuId),
                 RedisKey.getOccupiedKey(skuId)));
     }
 
@@ -66,7 +75,7 @@ public class InventoryRepositoryImpl implements InventoryRepository {
      */
     @Override
     public boolean rollback(String skuId, Long amount) {
-        return extracted(amount,  Arrays.asList(RedisKey.getWithholdingKey(skuId),
+        return extracted(amount, Arrays.asList(RedisKey.getWithholdingKey(skuId),
                 RedisKey.getSellableKey(skuId)));
     }
 

@@ -1,5 +1,6 @@
 package com.hixtrip.sample.infra;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.hixtrip.sample.domain.order.model.Order;
 import com.hixtrip.sample.domain.order.repository.OrderRepository;
 import com.hixtrip.sample.infra.db.convertor.OrderDOConvertor;
@@ -26,9 +27,6 @@ public class OrderRepositoryImpl implements OrderRepository {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    @Autowired
-    private PaymentHandle paymentHandle;
-
     @Override
     public Order create(Order order) {
         OrderDO orderDO = OrderDOConvertor.INSTANCE.doToDomain(order);
@@ -41,19 +39,26 @@ public class OrderRepositoryImpl implements OrderRepository {
 
     @Override
     public Order changePayStatus(String orderId, String payStatus) {
-        OrderDO orderDO = orderMapper.selectById(orderId);
-        if (!PaymentStatusEnum.TO_BE_PAY.getStatus().equals(orderDO.getPayStatus())) {
+
+        //更改下单时间和状态
+        LambdaUpdateWrapper<OrderDO> updateWrapper = new LambdaUpdateWrapper();
+        updateWrapper.eq(OrderDO::getId, orderId);
+        updateWrapper.eq(OrderDO::getPayStatus, PaymentStatusEnum.TO_BE_PAY.getValue());
+        OrderDO orderDO = OrderDO.builder()
+                .status(OrderStatusEnum.TO_BE_SHIP.getValue())
+                .payStatus(PaymentStatusEnum.getValueByStatus(payStatus))
+                .payTime(LocalDateTime.now())
+                .build();
+        int update = orderMapper.update(orderDO, updateWrapper);
+        // 校验幂等
+        if (update == 0) {
             throw new RuntimeException("当前订单状态已变更，非待支付状态");
         }
-        //更改下单时间和状态
-        orderDO.setPayTime(LocalDateTime.now());
-        orderDO.setPayStatus(PaymentStatusEnum.getValueByStatus(payStatus));
-        orderMapper.updateById(orderDO);
-
+        orderDO = orderMapper.selectById(orderId);
         return OrderDOConvertor.INSTANCE.domainToDO(orderDO);
     }
 
-    private String getOrderId(){
+    private String getOrderId() {
         // todo 使用雪花算法获取id
         return "";
     }

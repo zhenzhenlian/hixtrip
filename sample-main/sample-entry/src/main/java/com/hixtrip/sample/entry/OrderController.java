@@ -31,12 +31,14 @@ public class OrderController {
      */
     @PostMapping(path = "/command/order/create")
     public String order(@RequestBody CommandOderCreateDTO commandOderCreateDTO) {
+        // todo 秒杀场景 ,如果是秒杀，最好是redis预占库存后，发送mq，通过消费mq来创建订单
         //登录信息可以在这里模拟
         String userId = "";
         String userName = "";
         Order order = OrderConvertor.INSTANCE.oderCreateDTOToOrder(commandOderCreateDTO);
         order.setUserId(userId);
         order.setUserName(userName);
+        // 返回orderId,前端唤起支付
         return orderService.creatOrder(order);
     }
 
@@ -49,9 +51,8 @@ public class OrderController {
      */
     @PostMapping(path = "/command/order/pay/callback")
     public String payCallback(@RequestBody CommandPayDTO commandPayDTO) {
+        // todo 验签
         orderService.payCallback(commandPayDTO);
         return "SUCCESS";
-
     }
-
 }
